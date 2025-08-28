@@ -22,51 +22,48 @@ export default function Home() {
   }, [messages]);
 
   const sendMessage = async () => {
-    if (!input.trim() || isLoading) return;
+  if (!input.trim() || isLoading) return;
 
-    const userMessage = { role: 'user', content: input.trim() };
-    const newMessages = [...messages, userMessage];
+  const userMessage = { role: 'user', content: input };
+  const newMessages = [...messages, userMessage];
+  
+  setMessages(newMessages);
+  setInput('');
+  setIsLoading(true);
+
+  try {
+    const response = await fetch("/api/chat", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        messages: newMessages.map(msg => ({
+          role: msg.role,
+          content: msg.content
+        }))
+      })
+    });
+
+    const data = await response.json();
     
-    setMessages(newMessages);
-    setInput('');
-    setIsLoading(true);
-
-    try {
-      // Direct API call that works in production
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "anthropic-version": "2023-06-01"
-        },
-        body: JSON.stringify({
-          model: "claude-3-sonnet-20240229",
-          max_tokens: 1000,
-          messages: newMessages.filter(msg => msg.role !== 'system').map(msg => ({
-            role: msg.role,
-            content: msg.content
-          }))
-        })
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const assistantResponse = data.content?.[0]?.text || generateIntelligentResponse(userMessage.content);
-        setMessages([...newMessages, { role: 'assistant', content: assistantResponse }]);
-      } else {
-        // Fallback to intelligent responses
-        const intelligentResponse = generateIntelligentResponse(userMessage.content);
-        setMessages([...newMessages, { role: 'assistant', content: intelligentResponse }]);
-      }
-      
-    } catch (error) {
-      // Intelligent fallback response system
-      const intelligentResponse = generateIntelligentResponse(userMessage.content);
-      setMessages([...newMessages, { role: 'assistant', content: intelligentResponse }]);
-    } finally {
-      setIsLoading(false);
+    if (response.ok && data.content && data.content[0] && data.content[0].text) {
+      const assistantResponse = data.content[0].text;
+      setMessages([...newMessages, { role: 'assistant', content: assistantResponse }]);
+    } else {
+      throw new Error('API response error');
     }
-  };
+    
+  } catch (error) {
+    console.error('Error:', error);
+    setMessages([...newMessages, { 
+      role: 'assistant', 
+      content: 'I apologize, but I\'m having trouble connecting to my AI service right now. This is a technical issue with the API authentication. The chat interface is working perfectly, but the AI responses require proper API key setup which needs to be configured in the deployment environment.' 
+    }]);
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   const generateIntelligentResponse = (userInput) => {
     const input = userInput.toLowerCase();
