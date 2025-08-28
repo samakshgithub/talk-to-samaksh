@@ -22,47 +22,57 @@ export default function Home() {
   }, [messages]);
 
   const sendMessage = async () => {
-    if (!input.trim() || isLoading) return;
+  if (!input.trim() || isLoading) return;
 
-    const userMessage = { role: 'user', content: input };
-    const newMessages = [...messages, userMessage];
-    
-    setMessages(newMessages);
-    setInput('');
-    setIsLoading(true);
+  const userMessage = { role: 'user', content: input };
+  const newMessages = [...messages, userMessage];
+  
+  setMessages(newMessages);
+  setInput('');
+  setIsLoading(true);
 
-    try {
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          messages: newMessages.map(msg => ({
-            role: msg.role,
-            content: msg.content
-          }))
-        })
-      });
+  try {
+    const response = await fetch("/api/chat", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        messages: newMessages.map(msg => ({
+          role: msg.role,
+          content: msg.content
+        }))
+      })
+    });
 
-      if (!response.ok) {
-        throw new Error(`API request failed: ${response.status}`);
-      }
-
-      const data = await response.json();
-      const assistantResponse = data.content[0].text;
-
-      setMessages([...newMessages, { role: 'assistant', content: assistantResponse }]);
-    } catch (error) {
-      console.error('Error:', error);
-      setMessages([...newMessages, { 
-        role: 'assistant', 
-        content: 'Sorry, I encountered an error. Please try again.' 
-      }]);
-    } finally {
-      setIsLoading(false);
+    if (!response.ok) {
+      throw new Error(`API request failed: ${response.status}`);
     }
-  };
+
+    const data = await response.json();
+    
+    // Handle both real API and mock response format
+    let assistantResponse;
+    if (data.content && data.content[0] && data.content[0].text) {
+      assistantResponse = data.content[0].text;
+    } else if (data.message) {
+      assistantResponse = data.message;
+    } else {
+      assistantResponse = "I'm here to help! What would you like to know?";
+    }
+
+    setMessages([...newMessages, { role: 'assistant', content: assistantResponse }]);
+    
+  } catch (error) {
+    console.error('Error:', error);
+    setMessages([...newMessages, { 
+      role: 'assistant', 
+      content: 'I apologize, but I\'m having trouble connecting right now. Please try again in a moment.' 
+    }]);
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   const handleKeyPress = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
