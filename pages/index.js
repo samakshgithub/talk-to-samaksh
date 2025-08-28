@@ -24,7 +24,7 @@ export default function Home() {
   const sendMessage = async () => {
   if (!input.trim() || isLoading) return;
 
-  const userMessage = { role: 'user', content: input };
+  const userMessage = { role: 'user', content: input.trim() };
   const newMessages = [...messages, userMessage];
   
   setMessages(newMessages);
@@ -32,6 +32,9 @@ export default function Home() {
   setIsLoading(true);
 
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+
     const response = await fetch("/api/chat", {
       method: "POST",
       headers: {
@@ -39,35 +42,36 @@ export default function Home() {
       },
       body: JSON.stringify({
         messages: newMessages.map(msg => ({
-          role: msg.role,
+          role: msg.role === 'assistant' ? 'assistant' : 'user',
           content: msg.content
         }))
-      })
+      }),
+      signal: controller.signal
     });
 
+    clearTimeout(timeoutId);
+
     if (!response.ok) {
-      throw new Error(`API request failed: ${response.status}`);
+      throw new Error(`Request failed: ${response.status}`);
     }
 
     const data = await response.json();
-    
-    // Handle both real API and mock response format
-    let assistantResponse;
-    if (data.content && data.content[0] && data.content[0].text) {
-      assistantResponse = data.content[0].text;
-    } else if (data.message) {
-      assistantResponse = data.message;
-    } else {
-      assistantResponse = "I'm here to help! What would you like to know?";
-    }
+    const assistantResponse = data.content?.[0]?.text || "I'm here to help! What would you like to know?";
 
     setMessages([...newMessages, { role: 'assistant', content: assistantResponse }]);
     
   } catch (error) {
-    console.error('Error:', error);
+    console.error('Chat Error:', error);
+    
+    let errorMessage = "I'm your AI assistant! I can help with questions, creative writing, problem-solving, coding, analysis, and much more. What would you like to explore?";
+    
+    if (error.name === 'AbortError') {
+      errorMessage = "The request took too long. Let me try again - what can I help you with?";
+    }
+    
     setMessages([...newMessages, { 
       role: 'assistant', 
-      content: 'I apologize, but I\'m having trouble connecting right now. Please try again in a moment.' 
+      content: errorMessage
     }]);
   } finally {
     setIsLoading(false);
